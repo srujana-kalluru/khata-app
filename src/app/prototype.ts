@@ -425,24 +425,6 @@ function setTab(t){
 }
 function bindTabs(){ document.querySelectorAll("[data-tab]").forEach(el=>el.onclick=()=>setTab(el.getAttribute("data-tab"))); }
 
-// ---- Android hardware back button (Capacitor) ----
-function wireHardwareBack(){
-  try{
-    var Cap=window.Capacitor;
-    if(Cap && Cap.Plugins && Cap.Plugins.App){
-      Cap.Plugins.App.addListener('backButton', function(){
-        var dm=document.getElementById('daymodal');
-        if(dm && dm.classList.contains('show')){ dm.classList.remove('show'); return; }
-        var box=document.getElementById('searchresults');
-        if(box && box.classList.contains('show')){ box.classList.remove('show'); return; }
-        if(STATE.tab!=='dash'){ setTab('dash'); return; }
-        if(typeof HI!=='undefined' && HI>0){ goBack(); return; }
-        Cap.Plugins.App.exitApp();
-      });
-    }
-  }catch(e){}
-}
-
 
 // ---- Inventory tab: everything logged, assumed still on hand ----
 // is a size measured by volume (ml/L) or mass (g/kg)?
@@ -760,7 +742,6 @@ document.addEventListener("click",e=>{ if(!e.target.closest(".pt")){ let t=docum
 (function(){let dm=document.getElementById("daymodal"); if(dm)dm.addEventListener("click",e=>{ if(e.target===dm)dm.classList.remove("show"); });})();
 bindFilter();
 syncFilterUI();
-wireHardwareBack();
 pushHist();   // seed initial state so Back is disabled at the root
 render();
 if(SAVED_LEDGER && SAVED_LEDGER.length){
