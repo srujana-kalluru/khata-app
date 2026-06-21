@@ -776,25 +776,16 @@ if(SAVED_LEDGER && SAVED_LEDGER.length){
 
 
 
-// ---- Household: one shared Google Drive file across sign-ins ----
+// ---- Household: shared via Supabase (Google sign-in, join by code) ----
 (function () {
   "use strict";
-  var cfg = window.GOOGLE_CONFIG;
-  function unconfigured() { return !cfg || !cfg.clientId || /PASTE|YOUR_/i.test(cfg.clientId || ""); }
-  if (unconfigured()) {
-    console.warn("[khata] Google sign-in not configured - running in local mode. See README.");
-    return;
-  }
+  var cfg = window.SUPABASE_CONFIG || {};
 
-  var SCOPE = "https://www.googleapis.com/auth/drive.file";
-  var FILE_NAME = "khata-household.json";
-  var LS_KEY = "khata_household_file";
-  var API_KEY = cfg.apiKey || "";
-  var APP_ID = cfg.appId || (cfg.clientId || "").split("-")[0];  // Cloud project number, for the picker
-
-  var token = null, tokenClient = null, pending = null;
-  var fileId = localStorage.getItem(LS_KEY) || null;
+  var LS_KEY = "khata_household_id";
   var hhCurrentName = "Household";
+  var householdId = localStorage.getItem(LS_KEY) || null;
+  var householdCode = null, isOwner = false;
+  var user = null, sb = null;
 
   var gate = document.getElementById("authgate"),
       gErr = document.getElementById("autherr"),
@@ -804,7 +795,8 @@ if(SAVED_LEDGER && SAVED_LEDGER.length){
       hhErr = document.getElementById("hherr"),
       hhNameEl = document.getElementById("hhname"),
       hhInfo = document.getElementById("hhinfo"),
-      hhLinkBox = document.getElementById("hhlinkbox"),
+      hhCodeBox = document.getElementById("hhcodebox"),
+      hhJoinEl = document.getElementById("hhjoincode"),
       hhSetup = document.getElementById("hhsetup"),
       hhManage = document.getElementById("hhmanagebox"),
       hhCur = document.getElementById("hhcur"),
@@ -814,205 +806,172 @@ if(SAVED_LEDGER && SAVED_LEDGER.length){
   function setErr(el, m) { if (el) el.textContent = m || ""; }
   function setHName(n) { hhCurrentName = n || "Household"; var rl = document.getElementById("rangelabel"); if (rl) rl.textContent = hhCurrentName; }
 
-  function api(url, opts, retried) {
-    opts = opts || {}; opts.headers = opts.headers || {}; opts.headers.Authorization = "Bearer " + token;
-    return fetch(url, opts).then(function (r) {
-      if (r.status === 401 && !retried) return acquireToken(true).then(function () { return api(url, opts, true); });
-      if (!r.ok) return r.text().then(function (t) { var m = "HTTP " + r.status; try { var j = JSON.parse(t); if (j && j.error && j.error.message) m = r.status + ": " + j.error.message; } catch (e) {} throw new Error(m); });
-      return r;
-    });
-  }
-  function readFile(id) { return api("https://www.googleapis.com/drive/v3/files/" + id + "?alt=media").then(function (r) { return r.json(); }); }
-  function createFile(data) {
-    var b = "khata" + Date.now();
-    var body = "--" + b + "\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n" +
-      JSON.stringify({ name: FILE_NAME }) + "\r\n--" + b +
-      "\r\nContent-Type: application/json\r\n\r\n" + JSON.stringify(data) + "\r\n--" + b + "--";
-    return api("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id",
-      { method: "POST", headers: { "Content-Type": "multipart/related; boundary=" + b }, body: body }).then(function (r) { return r.json(); });
-  }
-  function updateFile(id, data) {
-    return api("https://www.googleapis.com/upload/drive/v3/files/" + id + "?uploadType=media",
-      { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
-  }
-  function shareAnyone(id) {
-    return api("https://www.googleapis.com/drive/v3/files/" + id + "/permissions",
-      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role: "writer", type: "anyone" }) });
-  }
+  show(gate, true);
 
-  function packet() { return { name: hhCurrentName, entries: LEDGER, labels: LABELS, updatedAt: new Date().toISOString() }; }
-  function loadFromFile(d) {
+  function packet() { return { entries: LEDGER, labels: LABELS, updatedAt: new Date().toISOString() }; }
+  function loadData(d) {
     if (d && Array.isArray(d.entries)) LEDGER = d.entries;
     if (d && d.labels) LABELS = d.labels;
-    if (d && d.name) setHName(d.name);
     render();
   }
 
-  // every save writes the shared household file, so all members see it
+  // every save writes the household row, so all members see it
   persistLedger = function (rows, labels) {
     LEDGER = rows; LABELS = labels;
-    if (!token || !fileId) return;
-    updateFile(fileId, packet())
-      .then(function () { setStatus(rows.length + " rows saved to " + hhCurrentName); })
-      .catch(function (e) { console.warn("[khata] household save failed:", (e && e.message) || e); setStatus("Changes could not be saved right now.", true); });
+    if (!user || !householdId || !sb) return;
+    sb.from("households").update({ data: packet(), updated_at: new Date().toISOString() }).eq("id", householdId)
+      .then(function (res) {
+        if (res.error) { console.warn("[khata] save failed:", res.error.message); setStatus("Changes could not be saved right now.", true); }
+        else setStatus(rows.length + " rows saved to " + hhCurrentName);
+      });
   };
 
-  function openHousehold() {
-    show(hh, false);
-    setStatus("loading the household ledger...");
-    readFile(fileId).then(function (d) { loadFromFile(d); if (hhLink) hhLink.style.display = "inline-flex"; setStatus("synced with " + hhCurrentName); })
-      .catch(function () {
-        localStorage.removeItem(LS_KEY); fileId = null; show(hh, true);
-        setErr(hhErr, "Could not open that household - it may have been removed or unshared.");
+  function loadHousehold() {
+    show(hh, false); setStatus("loading the household ledger...");
+    sb.from("households").select("name,code,data,created_by").eq("id", householdId).single()
+      .then(function (res) {
+        if (res.error || !res.data) {
+          localStorage.removeItem(LS_KEY); householdId = null; show(hh, true);
+          setErr(hhErr, "Could not open that household - it may have been removed.");
+          return;
+        }
+        var d = res.data;
+        householdCode = d.code; isOwner = (d.created_by === (user && user.id));
+        setHName(d.name); loadData(d.data || {});
+        if (hhLink) hhLink.style.display = "inline-flex";
+        setStatus("synced with " + hhCurrentName);
       });
   }
   function createHousehold() {
     setErr(hhErr, "");
-    setHName((hhNameEl && hhNameEl.value.trim()) || "Household");
-    createFile(packet()).then(function (j) {
-      fileId = j.id; localStorage.setItem(LS_KEY, fileId);
-      return shareAnyone(fileId);
-    }).then(function () {
-      var link = "https://drive.google.com/file/d/" + fileId + "/view";
-      if (hhLinkBox) hhLinkBox.textContent = link;
+    var nm = (hhNameEl && hhNameEl.value.trim()) || "Household";
+    sb.rpc("create_household", { p_name: nm }).then(function (res) {
+      if (res.error || !res.data || !res.data.length) {
+        console.warn("[khata] create failed:", res.error && res.error.message);
+        setErr(hhErr, "The household could not be created. Please try again.");
+        return;
+      }
+      var row = res.data[0];
+      householdId = row.id; householdCode = row.code; isOwner = true;
+      localStorage.setItem(LS_KEY, householdId); setHName(nm);
+      sb.from("households").update({ data: packet() }).eq("id", householdId).then(function () {});
+      if (hhCodeBox) hhCodeBox.textContent = householdCode;
       if (hhInfo) hhInfo.style.display = "block";
-    }).catch(function (e) { console.warn("[khata] create household failed:", (e && e.message) || e); setErr(hhErr, "The household could not be created. Please try again."); });
-  }
-  function joinPicked(id) {
-    setErr(hhErr, "");
-    readFile(id).then(function (d) {
-      fileId = id; localStorage.setItem(LS_KEY, fileId); loadFromFile(d); show(hh, false); if (hhLink) hhLink.style.display = "inline-flex";
-      setStatus("joined " + hhCurrentName);
-    }).catch(function () { setErr(hhErr, "Could not open that file - make sure it is the shared khata household file."); });
-  }
-  var pickerReady = false;
-  function whenPicker(cb, tries) {
-    tries = tries || 0;
-    if (pickerReady) return cb();
-    if (window.gapi && gapi.load) { gapi.load("picker", { callback: function () { pickerReady = true; cb(); } }); return; }
-    if (tries > 40) { setErr(hhErr, "Could not load the Google file picker."); return; }
-    setTimeout(function () { whenPicker(cb, tries + 1); }, 150);
+    });
   }
   function joinHousehold() {
-    if (!API_KEY) { console.warn("[khata] joining requires a Google Picker API key (apiKey) in google-config.js - see the README."); setErr(hhErr, "Joining a household is not available right now."); return; }
-    if (!token) { setErr(hhErr, "Sign in first."); return; }
-    setErr(hhErr, "");
-    whenPicker(function () {
-      var shared = new google.picker.DocsView(google.picker.ViewId.DOCS).setOwnedByMe(false).setIncludeFolders(false).setSelectFolderEnabled(false);
-      var mine = new google.picker.DocsView(google.picker.ViewId.DOCS).setOwnedByMe(true).setIncludeFolders(false).setSelectFolderEnabled(false);
-      var picker = new google.picker.PickerBuilder()
-        .setOAuthToken(token).setDeveloperKey(API_KEY).setAppId(APP_ID)
-        .addView(shared).addView(mine)
-        .setTitle("Pick the shared khata household file")
-        .setCallback(function (data) {
-          if (data.action === google.picker.Action.PICKED && data.docs && data.docs[0]) joinPicked(data.docs[0].id);
-        }).build();
-      picker.setVisible(true);
+    var code = (hhJoinEl && hhJoinEl.value.trim()) || "";
+    if (!code) { setErr(hhErr, "Enter a household code first."); return; }
+    setErr(hhErr, "joining...");
+    sb.rpc("join_household", { p_code: code }).then(function (res) {
+      if (res.error || !res.data) { setErr(hhErr, "No household found for that code. Check it and try again."); return; }
+      householdId = res.data; localStorage.setItem(LS_KEY, householdId);
+      setErr(hhErr, ""); loadHousehold();
     });
   }
 
   function showManage(on) { if (hhManage) hhManage.style.display = on ? "flex" : "none"; if (hhSetup) hhSetup.style.display = on ? "none" : "flex"; if (hhInfo && !on) hhInfo.style.display = "none"; }
-  function hhShareLink() { return fileId ? ("https://drive.google.com/file/d/" + fileId + "/view") : ""; }
   function openManage() {
     if (hhCur) hhCur.textContent = hhCurrentName;
-    var ml = document.getElementById("hhmanagelink"); if (ml) ml.textContent = hhShareLink();
-    // exactly one exit action: the owner's leave deletes for everyone; a member's leave only forgets it.
+    var cb = document.getElementById("hhmanagecode"); if (cb) cb.textContent = householdCode || "";
     var del = document.getElementById("hhdelete"), lv = document.getElementById("hhleave");
-    if (del) del.style.display = "none";
-    if (lv) lv.style.display = "none";
-    function applyRole(owner) { if (del) del.style.display = owner ? "block" : "none"; if (lv) lv.style.display = owner ? "none" : "block"; }
-    if (fileId) api("https://www.googleapis.com/drive/v3/files/" + fileId + "?fields=ownedByMe,capabilities/canDelete")
-      .then(function (r) { return r.json(); })
-      .then(function (m) { applyRole(!!(m && (m.ownedByMe || (m.capabilities && m.capabilities.canDelete)))); })
-      .catch(function () { applyRole(false); });
-    else applyRole(false);
+    if (del) del.style.display = isOwner ? "block" : "none";
+    if (lv) lv.style.display = isOwner ? "none" : "block";
     setErr(hhErr, ""); showManage(true); show(hh, true);
   }
-  function leaveHousehold() { localStorage.removeItem(LS_KEY); fileId = null; if (hhLink) hhLink.style.display = "none"; setErr(hhErr, ""); showManage(false); }
+  function forgetLocal() { localStorage.removeItem(LS_KEY); householdId = null; householdCode = null; if (hhLink) hhLink.style.display = "none"; }
+  function leaveHousehold() {
+    if (householdId && user) sb.from("household_members").delete().eq("household_id", householdId).eq("user_id", user.id).then(function () {});
+    forgetLocal(); setErr(hhErr, ""); showManage(false);
+  }
   function deleteHousehold() {
-    if (!fileId) { leaveHousehold(); return; }
+    if (!householdId) { leaveHousehold(); return; }
     setErr(hhErr, "deleting...");
-    api("https://www.googleapis.com/drive/v3/files/" + fileId, { method: "DELETE" })
-      .then(function () { leaveHousehold(); })
-      .catch(function () { setErr(hhErr, "Only the creator can delete this household - you can Leave instead."); });
+    sb.from("households").delete().eq("id", householdId).then(function (res) {
+      if (res.error) { setErr(hhErr, "Only the creator can delete this household."); return; }
+      forgetLocal(); LEDGER = []; render(); setErr(hhErr, ""); showManage(false);
+    });
   }
   function clearAllLocal() {
     try { [LS_KEY, "khata_ledger", "khata_ledger_name", "khata_labels", "khata_recents"].forEach(function (k) { localStorage.removeItem(k); }); } catch (e) {}
   }
   function finishAccountWipe() {
-    clearAllLocal(); fileId = null; LEDGER = []; render();
-    if (token && window.google && google.accounts && google.accounts.oauth2) { try { google.accounts.oauth2.revoke(token, function () {}); } catch (e) {} }
-    token = null;
+    clearAllLocal(); householdId = null; householdCode = null; LEDGER = []; render();
+    if (sb) sb.auth.signOut().then(function () {});
+    user = null;
     if (btnOut) btnOut.style.display = "none";
     if (hhLink) hhLink.style.display = "none";
     show(hh, false); show(gate, true);
     setErr(gErr, "Account deleted. Sign in to start fresh.");
   }
   function deleteAccount() {
-    // owner: deletes the household file, so every other member is disconnected on their next sync.
-    // member: cannot delete a file owned by someone else, so only this account is wiped.
-    if (fileId) api("https://www.googleapis.com/drive/v3/files/" + fileId, { method: "DELETE" }).then(finishAccountWipe, finishAccountWipe);
-    else finishAccountWipe();
+    // owner: delete the household for everyone; member: just leave. Then sign out and wipe local.
+    if (householdId && user) {
+      if (isOwner) sb.from("households").delete().eq("id", householdId).then(finishAccountWipe, finishAccountWipe);
+      else sb.from("household_members").delete().eq("household_id", householdId).eq("user_id", user.id).then(finishAccountWipe, finishAccountWipe);
+    } else finishAccountWipe();
   }
   var b1 = document.getElementById("hhcreate"); if (b1) b1.onclick = createHousehold;
   var b2 = document.getElementById("hhjoin"); if (b2) b2.onclick = joinHousehold;
-  var b3 = document.getElementById("hhdone"); if (b3) b3.onclick = openHousehold;
-  var b4 = document.getElementById("hhback"); if (b4) b4.onclick = function () { token = null; if (hhLink) hhLink.style.display = "none"; show(hh, false); show(gate, true); };
+  var b3 = document.getElementById("hhdone"); if (b3) b3.onclick = function () { show(hh, false); loadHousehold(); };
+  var b4 = document.getElementById("hhback"); if (b4) b4.onclick = function () { if (sb) sb.auth.signOut().then(function () {}); user = null; if (hhLink) hhLink.style.display = "none"; show(hh, false); show(gate, true); };
   var b5 = document.getElementById("hhleave"); if (b5) b5.onclick = leaveHousehold;
   var b6 = document.getElementById("hhdelete"); if (b6) b6.onclick = deleteHousehold;
   var b7 = document.getElementById("hhcancel"); if (b7) b7.onclick = function () { show(hh, false); };
   var bcopy = document.getElementById("hhcopylink");
   if (bcopy) bcopy.onclick = function () {
-    var l = hhShareLink(); if (!l) return;
-    var done = function () { bcopy.textContent = "Copied"; setTimeout(function () { bcopy.textContent = "Copy invite link"; }, 1500); };
-    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(l).then(done, function () { setErr(hhErr, "select the link and copy it manually"); });
-    else setErr(hhErr, "select the link and copy it manually");
+    if (!householdCode) return;
+    var done = function () { bcopy.textContent = "Copied"; setTimeout(function () { bcopy.textContent = "Copy code"; }, 1500); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(householdCode).then(done, function () {});
+    else done();
   };
   if (hhLink) hhLink.onclick = openManage;
   var bda = document.getElementById("hhdeleteacct"), bdaArmed = false, bdaTimer = null;
   if (bda) bda.onclick = function () {
-    if (!bdaArmed) { bdaArmed = true; bda.textContent = "Tap again to delete account + household for everyone"; bdaTimer = setTimeout(function () { bdaArmed = false; bda.textContent = "Delete account"; }, 4000); return; }
+    if (!bdaArmed) { bdaArmed = true; bda.textContent = "Tap again to delete your account and data"; bdaTimer = setTimeout(function () { bdaArmed = false; bda.textContent = "Delete account"; }, 4000); return; }
     clearTimeout(bdaTimer); bdaArmed = false; bda.textContent = "Deleting..."; deleteAccount();
   };
 
-  function whenGis(cb, tries) {
-    tries = tries || 0;
-    if (window.google && google.accounts && google.accounts.oauth2) return cb();
-    if (tries > 40) { setErr(gErr, "Could not load Google sign-in."); return; }
-    setTimeout(function () { whenGis(cb, tries + 1); }, 150);
-  }
-  function ensureClient() {
-    if (tokenClient) return;
-    tokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: cfg.clientId, scope: SCOPE,
-      callback: function (resp) { if (resp && resp.access_token) { token = resp.access_token; if (pending) { var p = pending; pending = null; p(); } } }
-    });
-  }
-  function acquireToken(silent) {
-    return new Promise(function (res) { whenGis(function () { ensureClient(); pending = res; tokenClient.requestAccessToken({ prompt: silent ? "" : "select_account" }); }); });
-  }
-  function onSignedIn() {
-    show(gate, false);
+  function signedIn(u) {
+    user = u; show(gate, false);
     if (btnOut) btnOut.style.display = "inline";
-    if (fileId) openHousehold(); else { showManage(false); show(hh, true); }
+    if (householdId) loadHousehold(); else { showManage(false); show(hh, true); }
   }
-  if (btnIn) btnIn.onclick = function () { setErr(gErr, ""); acquireToken(false).then(onSignedIn).catch(function () { setErr(gErr, "Sign-in was cancelled or failed."); }); };
+  if (btnIn) btnIn.onclick = function () {
+    setErr(gErr, ""); if (!sb) return;
+    sb.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.origin + window.location.pathname } });
+  };
   if (btnOut) btnOut.onclick = function () {
-    if (token && window.google && google.accounts && google.accounts.oauth2) google.accounts.oauth2.revoke(token, function () {});
-    token = null; if (btnOut) btnOut.style.display = "none"; if (hhLink) hhLink.style.display = "none"; show(hh, false); show(gate, true);
+    if (sb) sb.auth.signOut().then(function () {});
+    user = null; if (btnOut) btnOut.style.display = "none"; if (hhLink) hhLink.style.display = "none"; show(hh, false); show(gate, true);
   };
   document.addEventListener("visibilitychange", function () {
-    if (document.hidden || !token || !fileId) return;
-    readFile(fileId).then(loadFromFile).catch(function (e) {
-      if (e && /^404/.test(String(e.message || ""))) {  // household deleted by its owner -> disconnect and show nothing
-        try { localStorage.removeItem(LS_KEY); } catch (x) {}
-        fileId = null; LEDGER = []; render();
-        if (hhLink) hhLink.style.display = "none";
-        showManage(false); show(hh, true); setErr(hhErr, "This household was deleted.");
-      }
+    if (document.hidden || !user || !householdId || !sb) return;
+    sb.from("households").select("name,data").eq("id", householdId).single().then(function (res) {
+      if (res.error) {
+        forgetLocal(); LEDGER = []; render(); showManage(false); show(hh, true); setErr(hhErr, "This household is no longer available.");
+      } else if (res.data) { setHName(res.data.name); loadData(res.data.data || {}); }
     });
   });
 
-  show(gate, true);
+  function whenSb(cb, tries) {
+    tries = tries || 0;
+    if (window.supabase && window.supabase.createClient) {
+      if (!sb) sb = window.supabase.createClient(cfg.url, cfg.anonKey, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: "pkce" } });
+      return cb();
+    }
+    if (tries > 60) { setErr(gErr, "Could not load Supabase."); show(gate, true); return; }
+    setTimeout(function () { whenSb(cb, tries + 1); }, 150);
+  }
+  whenSb(function () {
+    sb.auth.onAuthStateChange(function (event, session) {
+      if (session && session.user) { if (!user) signedIn(session.user); }
+      else if (user) { user = null; if (btnOut) btnOut.style.display = "none"; if (hhLink) hhLink.style.display = "none"; show(hh, false); show(gate, true); }
+    });
+    sb.auth.getSession().then(function (res) {
+      var session = res.data && res.data.session;
+      if (session && session.user) signedIn(session.user); else show(gate, true);
+    });
+  });
 })();
 }

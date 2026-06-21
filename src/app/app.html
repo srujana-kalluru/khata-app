@@ -63,21 +63,21 @@
       <input id="hhname" type="text" placeholder="household name (e.g. Home)" autocomplete="off">
       <button id="hhcreate">Create a new household</button>
       <div id="hhinfo" style="display:none">
-        <div class="hhcode">Send this link to members:</div>
-        <div class="hhidbox" id="hhlinkbox"></div>
-        <div class="hhcode">Each member opens this link, then chooses the <b>khata-household</b> file to join.</div>
+        <div class="hhcode">Share this code with members:</div>
+        <div class="hhidbox" id="hhcodebox"></div>
+        <div class="hhcode">A member enters this code to join.</div>
         <button id="hhdone">Open household</button>
       </div>
       <div class="hhor">- or join one you were invited to -</div>
-      <div class="hhcode">First open the invite link a member sent you - it shares their household with your account. Then tap below and choose the <b>khata-household</b> file.</div>
-      <button id="hhjoin" class="ghost">Join an existing household</button>
+      <input id="hhjoincode" type="text" placeholder="household code" autocomplete="off">
+      <button id="hhjoin" class="ghost">Join with code</button>
       <div class="hhback" id="hhback">use a different account</div>
     </div>
     <div id="hhmanagebox" style="display:none">
       <div class="authsub">you are in <b id="hhcur"></b></div>
-      <div class="hhcode">Invite link - share to add members:</div>
-      <div class="hhidbox" id="hhmanagelink"></div>
-      <button id="hhcopylink" class="ghost">Copy invite link</button>
+      <div class="hhcode">Household code - share to add members:</div>
+      <div class="hhidbox" id="hhmanagecode"></div>
+      <button id="hhcopylink" class="ghost">Copy code</button>
       <button id="hhleave" class="ghost">Leave (others keep it)</button>
       <button id="hhdelete">Leave (deletes for everyone)</button>
       <div class="hhback" id="hhcancel">cancel</div>

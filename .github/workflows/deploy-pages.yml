@@ -15,7 +15,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply database migrations (Liquibase)
+        env:
+          LIQUIBASE_COMMAND_URL: ${{ secrets.SUPABASE_DB_URL }}
+          LIQUIBASE_COMMAND_USERNAME: postgres.bsuvxhymylxvdksijanj
+          LIQUIBASE_COMMAND_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          docker run --rm \
+            -e LIQUIBASE_COMMAND_URL -e LIQUIBASE_COMMAND_USERNAME -e LIQUIBASE_COMMAND_PASSWORD \
+            -v "$PWD/db/changelog:/liquibase/changelog" \
+            liquibase/liquibase:4.31 \
+            --changelog-file=changelog/db.changelog-master.sql update
+
   build:
+    needs: migrate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,13 +43,13 @@ jobs:
       - run: npm ci
       - name: Inject runtime config
         env:
-          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
-          cat > public/google-config.js <<EOF
-          window.GOOGLE_CONFIG = {
-            clientId: "556658401647-soqsutprr74h5723vdcm03sfaikus68a.apps.googleusercontent.com",
-            apiKey: "${GOOGLE_API_KEY}",
-            appId: ""
+          cat > public/supabase-config.js <<EOF
+          window.SUPABASE_CONFIG = {
+            url: "${SUPABASE_URL}",
+            anonKey: "${SUPABASE_ANON_KEY}"
           };
           EOF
       - run: npx ng build --configuration production
