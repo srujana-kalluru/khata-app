@@ -1,0 +1,88 @@
+<div class="phone">
+  <div class="brandbar">
+    <div class="wordmark">k<span>h</span>ata</div>
+    <div class="rangelabel" id="rangelabel">household ledger</div>
+  </div>
+  <div class="uploadbar">
+    <label class="uploadbtn">↑ Upload from Excel<input type="file" id="xlsxfile" accept=".xlsx,.xlsm" hidden></label>
+    <span class="ustatus" id="ustatus">no data yet - upload an Excel ledger to begin</span>
+    <span class="signout" id="signoutbtn" style="display:none">sign out</span>
+    <button class="hhbtn" id="hhmanage" style="display:none" aria-label="Manage household"><svg viewBox="0 0 24 24"><circle cx="9" cy="7.5" r="3.2"/><path d="M3.5 19c0-3.2 2.6-5.2 5.5-5.2s5.5 2 5.5 5.2"/><path d="M16 5.2a3.2 3.2 0 0 1 0 6"/><path d="M17.2 13.9c2 .5 3.3 2.2 3.3 4.6"/></svg>Household</button>
+  </div>
+  <div class="tabs">
+    <button class="tab on" data-tab="dash">Dashboard</button>
+    <button class="tab" data-tab="inventory">Inventory</button>
+    <button class="tab" data-tab="restock">Restock</button>
+    <button class="tab" data-tab="rhythm">Rhythm</button>
+  </div>
+  <div class="searchwrap">
+    <input id="search" class="searchbox" type="text" placeholder="Search items, platforms, categories…" autocomplete="off">
+    <div id="searchresults" class="results"></div>
+  </div>
+  <div class="surface">
+    <div class="filter">
+      <div class="toggles">
+        <span class="tg on" data-range="month">This month</span>
+        <span class="tg" data-range="today">Today</span>
+        <span class="tg" data-range="custom">Custom</span>
+      </div>
+      <div class="stepper" id="stepper">
+        <button class="stepbtn" id="prevPeriod" aria-label="Previous period">‹</button>
+        <span class="periodlabel" id="periodlabel">June 2026</span>
+        <button class="stepbtn" id="nextPeriod" aria-label="Next period" disabled>›</button>
+      </div>
+      <div id="customwrap">
+        <label>From</label><input type="date" id="from" value="2026-06-01" min="2025-01-01" max="2026-06-30">
+        <label>To</label><input type="date" id="to" value="2026-06-30" min="2025-01-01" max="2026-06-30">
+        <button id="applycustom">Apply</button>
+      </div>
+    </div>
+    <div class="navrow">
+      <button class="navbtn" id="homebtn" aria-label="Home"><svg viewBox="0 0 24 24"><path d="M4 11.5 12 5l8 6.5M6 10.5V19h12v-8.5"/></svg></button>
+      <button class="navbtn back" id="backbtn" aria-label="Back" disabled><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <button class="navbtn" id="fwdbtn" aria-label="Forward" disabled><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+    </div>
+    <div id="view"></div>
+  </div>
+  <div class="foot">drill into a category by tapping its bar</div>
+</div>
+<div id="tip" class="tip"></div>
+<div id="daymodal" class="dayoverlay"><div class="daycard" id="daycard"></div></div>
+<div id="authgate" class="authgate" style="display:none">
+  <div class="authcard" id="authcard">
+    <div class="authmark">k<span>h</span>ata</div>
+    <button id="gsignin">Sign in with Google</button>
+    <div id="autherr" class="autherr"></div>
+  </div>
+</div>
+<div id="hhgate" class="authgate" style="display:none">
+  <div class="authcard">
+    <div class="authmark">k<span>h</span>ata</div>
+    <div id="hhsetup">
+      <div class="authsub">set up your household - members share one ledger</div>
+      <input id="hhname" type="text" placeholder="household name (e.g. Home)" autocomplete="off">
+      <button id="hhcreate">Create a new household</button>
+      <div id="hhinfo" style="display:none">
+        <div class="hhcode">Send this link to members:</div>
+        <div class="hhidbox" id="hhlinkbox"></div>
+        <div class="hhcode">A member opens the link, then picks this file when joining.</div>
+        <button id="hhdone">Open household</button>
+      </div>
+      <div class="hhor">- or join an existing one -</div>
+      <div class="hhcode">Open the link a member sent, then:</div>
+      <button id="hhjoin" class="ghost">Join with the shared file</button>
+      <div class="hhback" id="hhback">use a different account</div>
+    </div>
+    <div id="hhmanagebox" style="display:none">
+      <div class="authsub">you are in <b id="hhcur"></b></div>
+      <div class="hhcode">Invite link - share to add members:</div>
+      <div class="hhidbox" id="hhmanagelink"></div>
+      <button id="hhcopylink" class="ghost">Copy invite link</button>
+      <button id="hhleave" class="ghost">Leave (others keep it)</button>
+      <button id="hhdelete">Leave (deletes for everyone)</button>
+      <div class="hhback" id="hhcancel">cancel</div>
+    </div>
+    <div id="hherr" class="autherr"></div>
+    <div class="hhdanger" id="hhdeleteacct">Delete account</div>
+  </div>
+</div>
