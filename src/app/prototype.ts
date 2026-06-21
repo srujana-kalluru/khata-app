@@ -854,7 +854,7 @@ if(SAVED_LEDGER && SAVED_LEDGER.length){
     if (!token || !fileId) return;
     updateFile(fileId, packet())
       .then(function () { setStatus(rows.length + " rows saved to " + hhCurrentName); })
-      .catch(function (e) { setStatus("Household save failed: " + (e.message || e), true); });
+      .catch(function (e) { console.warn("[khata] household save failed:", (e && e.message) || e); setStatus("Changes could not be saved right now.", true); });
   };
 
   function openHousehold() {
@@ -876,7 +876,7 @@ if(SAVED_LEDGER && SAVED_LEDGER.length){
       var link = "https://drive.google.com/file/d/" + fileId + "/view";
       if (hhLinkBox) hhLinkBox.textContent = link;
       if (hhInfo) hhInfo.style.display = "block";
-    }).catch(function (e) { setErr(hhErr, "Could not create household: " + (e.message || e)); });
+    }).catch(function (e) { console.warn("[khata] create household failed:", (e && e.message) || e); setErr(hhErr, "The household could not be created. Please try again."); });
   }
   function joinPicked(id) {
     setErr(hhErr, "");
@@ -894,7 +894,7 @@ if(SAVED_LEDGER && SAVED_LEDGER.length){
     setTimeout(function () { whenPicker(cb, tries + 1); }, 150);
   }
   function joinHousehold() {
-    if (!API_KEY) { setErr(hhErr, "Joining needs an apiKey in google-config.js - see the README."); return; }
+    if (!API_KEY) { console.warn("[khata] joining requires a Google Picker API key (apiKey) in google-config.js - see the README."); setErr(hhErr, "Joining a household is not available right now."); return; }
     if (!token) { setErr(hhErr, "Sign in first."); return; }
     setErr(hhErr, "");
     whenPicker(function () {
@@ -911,7 +911,7 @@ if(SAVED_LEDGER && SAVED_LEDGER.length){
     });
   }
 
-  function showManage(on) { if (hhManage) hhManage.style.display = on ? "block" : "none"; if (hhSetup) hhSetup.style.display = on ? "none" : "block"; if (hhInfo && !on) hhInfo.style.display = "none"; }
+  function showManage(on) { if (hhManage) hhManage.style.display = on ? "flex" : "none"; if (hhSetup) hhSetup.style.display = on ? "none" : "flex"; if (hhInfo && !on) hhInfo.style.display = "none"; }
   function hhShareLink() { return fileId ? ("https://drive.google.com/file/d/" + fileId + "/view") : ""; }
   function openManage() {
     if (hhCur) hhCur.textContent = hhCurrentName;
