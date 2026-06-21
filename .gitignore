@@ -1,0 +1,7 @@
+/node_modules
+/dist
+/.angular
+/.idea
+/public/google-config.js
+.DS_Store
+*.log
