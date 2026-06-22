@@ -746,7 +746,7 @@ document.addEventListener("click",e=>{ if(!e.target.closest(".pt")){ let t=docum
   function dm(q){ return !!(window.matchMedia && window.matchMedia(q).matches); }
   var isPWA = dm("(display-mode: standalone)")||dm("(display-mode: minimal-ui)")||dm("(display-mode: fullscreen)")||window.navigator.standalone===true;
   if(!isPWA) return;
-  var backArmed=false, lastRootBack=0;
+  var backArmed=false;
   function armBack(){ if(!backArmed){ try{history.pushState({khata:1},"");}catch(e){} backArmed=true; } }
   function closeTop(){
     var d=document.getElementById("daymodal"); if(d&&d.classList.contains("show")){d.classList.remove("show");return true;}
@@ -758,9 +758,8 @@ document.addEventListener("click",e=>{ if(!e.target.closest(".pt")){ let t=docum
   }
   window.addEventListener("popstate",function(){
     backArmed=false;
-    if(closeTop()){armBack();return;}
-    if(Date.now()-lastRootBack<2000){try{history.back();}catch(e){}return;}
-    lastRootBack=Date.now(); setStatus("Press back again to exit"); armBack();
+    closeTop();   // close an overlay or step back in-app if possible; root = no-op
+    armBack();    // always re-arm so back never exits the installed app
   });
   armBack();
 })();
