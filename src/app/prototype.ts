@@ -918,7 +918,13 @@ if(SAVED_LEDGER && SAVED_LEDGER.length){
   function signedIn(u) {
     user = u; show(gate, false);
     if (btnOut) btnOut.style.display = "inline";
-    if (householdId) loadHousehold(); else { showManage(false); show(hh, true); }
+    if (householdId) { loadHousehold(); return; }
+    setStatus("checking your household...");
+    sb.from("household_members").select("household_id").eq("user_id", u.id).limit(1).then(function (res) {
+      if (res.data && res.data.length) {
+        householdId = res.data[0].household_id; localStorage.setItem(LS_KEY, householdId); loadHousehold();
+      } else { showManage(false); show(hh, true); }
+    }, function () { showManage(false); show(hh, true); });
   }
   if (btnIn) btnIn.onclick = function () {
     setErr(gErr, ""); if (!sb) return;
