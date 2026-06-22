@@ -129,7 +129,7 @@ function sparkline(rows){
   let arr=[], maxV=1, inWin=[];
   for(let i=0;i<span;i++){ let dt=new Date(a.getTime()+i*86400000); let v=days[dt.toDateString()]||0; arr.push(v); if(v>maxV)maxV=v;
     inWin.push(dt.getTime()>=dMin-43200000 && dt.getTime()<=dMax+43200000); }
-  let W=300,H=60,top=6,base=42,plotH=base-top;
+  let W=Math.max(280,(document.getElementById('view')||{}).clientWidth||300),H=60,top=6,base=42,plotH=base-top;
   let xAt=i=>span>1?(i/(span-1))*W:W/2;
   // solid line across in-data days only
   let solidPts=arr.map((v,i)=>inWin[i]?`${xAt(i).toFixed(0)},${(base-(v/maxV)*plotH).toFixed(0)}`:null).filter(Boolean).join(" ");
@@ -267,7 +267,7 @@ function itemDetail(){
   let chart="";
   if(series.length){
     let [ra,rb]=activeRange(); let rT0=ra.getTime(), rT1=rb.getTime();
-    let W=304,H=92, us=series.map(s=>s.unit), mn=Math.min(...us), mx=Math.max(...us); if(mx===mn){mx+=1;mn-=1;}
+    let W=Math.max(280,(document.getElementById('view')||{}).clientWidth||304),H=92, us=series.map(s=>s.unit), mn=Math.min(...us), mx=Math.max(...us); if(mx===mn){mx+=1;mn-=1;}
     let dT0=series[0].t, dT1=series[series.length-1].t;          // data extent for this item
     let axMin=Math.min(rT0,dT0), axMax=Math.max(rT1,dT1);
     let xs=t=>axMax>axMin?20+((t-axMin)/(axMax-axMin))*(W-40):W/2;
@@ -389,7 +389,7 @@ function rhythmView(){
   });
   items.sort((a,b)=> b.n-a.n || a.avg-b.avg);
   if(!items.length) return `<div class="empty mono">Need an item bought 3+ times to show a rhythm. Widen your data or log more buys.</div>`;
-  let W=320, PADL=4, PADR=4, span=(axMax-axMin)||1;
+  let W=Math.max(280,(document.getElementById('view')||{}).clientWidth||320), PADL=4, PADR=4, span=(axMax-axMin)||1;
   let xs=t=> PADL + ((t-axMin)/span)*(W-PADL-PADR);
   // weekly marks, shared across all lanes (echoes the dashboard sparkline language)
   let weeks=[]; for(let t=axMin; t<=axMax+1; t+=7*86400000) weeks.push(t);
@@ -740,6 +740,7 @@ bindUpload();
 bindSearch();
 document.addEventListener("click",e=>{ if(!e.target.closest(".pt")){ let t=document.getElementById("tip"); if(t)t.classList.remove("show"); }});
 (function(){let dm=document.getElementById("daymodal"); if(dm)dm.addEventListener("click",e=>{ if(e.target===dm)dm.classList.remove("show"); });})();
+(function(){let rt;window.addEventListener("resize",function(){clearTimeout(rt);rt=setTimeout(function(){try{render();}catch(e){}},160);});})();
 bindFilter();
 syncFilterUI();
 pushHist();   // seed initial state so Back is disabled at the root
@@ -842,7 +843,7 @@ if(SAVED_LEDGER && SAVED_LEDGER.length){
   }
   function joinHousehold() {
     var code = (hhJoinEl && hhJoinEl.value.trim()) || "";
-    if (!code) { setErr(hhErr, "Enter a household code first."); return; }
+    if (!code) { setErr(hhErr, "Enter a household code"); return; }
     setErr(hhErr, "joining...");
     sb.rpc("join_household", { p_code: code }).then(function (res) {
       if (res.error || !res.data) { setErr(hhErr, "No household found for that code. Check it and try again."); return; }
