@@ -22,9 +22,9 @@ body{background:var(--paper);font-family:'Inter',sans-serif;color:var(--ink);
   margin:0 -14px 16px;padding:16px 16px 12px;
   background:rgba(235,227,207,.82);backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);
   border-bottom:1px solid rgba(218,208,185,.7)}
-.wordmark{font-family:'Bricolage Grotesque';font-weight:800;font-size:23px;letter-spacing:-.6px}
+.wordmark{font-family:'Bricolage Grotesque';font-weight:800;font-size:23px;letter-spacing:-.6px;flex-shrink:0}
 .wordmark span{color:var(--accent)}
-.rangelabel{font-family:'Space Mono';font-size:11px;color:var(--dim)}
+.rangelabel{font-family:'Space Mono';font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;padding-left:12px;text-align:right}
 .uploadbar{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
 .uploadbtn{font-family:'Space Mono';font-size:11.5px;padding:9px 13px;border-radius:var(--r-sm);
   background:var(--card);color:var(--ink);cursor:pointer;box-shadow:var(--sh-sm);transition:transform .15s var(--ease),box-shadow .15s}
