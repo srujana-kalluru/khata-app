@@ -741,6 +741,29 @@ bindSearch();
 document.addEventListener("click",e=>{ if(!e.target.closest(".pt")){ let t=document.getElementById("tip"); if(t)t.classList.remove("show"); }});
 (function(){let dm=document.getElementById("daymodal"); if(dm)dm.addEventListener("click",e=>{ if(e.target===dm)dm.classList.remove("show"); });})();
 (function(){let rt;window.addEventListener("resize",function(){clearTimeout(rt);rt=setTimeout(function(){try{render();}catch(e){}},160);});})();
+// Android/PWA hardware back: navigate within the app instead of closing it (installed app only)
+(function(){
+  function dm(q){ return !!(window.matchMedia && window.matchMedia(q).matches); }
+  var isPWA = dm("(display-mode: standalone)")||dm("(display-mode: minimal-ui)")||dm("(display-mode: fullscreen)")||window.navigator.standalone===true;
+  if(!isPWA) return;
+  var backArmed=false, lastRootBack=0;
+  function armBack(){ if(!backArmed){ try{history.pushState({khata:1},"");}catch(e){} backArmed=true; } }
+  function closeTop(){
+    var d=document.getElementById("daymodal"); if(d&&d.classList.contains("show")){d.classList.remove("show");return true;}
+    var s=document.getElementById("searchresults"); if(s&&s.classList.contains("show")){s.classList.remove("show");return true;}
+    var hg=document.getElementById("hhgate"),mb=document.getElementById("hhmanagebox");
+    if(hg&&hg.style.display!=="none"&&mb&&mb.style.display!=="none"){hg.style.display="none";return true;}
+    if(typeof HI!=="undefined"&&HI>0){goBack();return true;}
+    return false;
+  }
+  window.addEventListener("popstate",function(){
+    backArmed=false;
+    if(closeTop()){armBack();return;}
+    if(Date.now()-lastRootBack<2000){try{history.back();}catch(e){}return;}
+    lastRootBack=Date.now(); setStatus("Press back again to exit"); armBack();
+  });
+  armBack();
+})();
 (function(){var f=document.getElementById("from"),t=document.getElementById("to");if(f&&t){var iso=function(d){var mm=d.getMonth()+1,dd=d.getDate();return d.getFullYear()+"-"+(mm<10?"0"+mm:mm)+"-"+(dd<10?"0"+dd:dd);};f.value=iso(new Date(TODAY.getFullYear(),TODAY.getMonth(),1));t.value=iso(TODAY);f.max=iso(TODAY);t.max=iso(TODAY);}})();
 bindFilter();
 syncFilterUI();
