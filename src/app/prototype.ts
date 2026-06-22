@@ -80,7 +80,7 @@ function spikeFlags(series){
 }
 
 // ---- date range state ----
-const TODAY=new Date(2026,5,18);
+const TODAY=(function(){var n=new Date();return new Date(n.getFullYear(),n.getMonth(),n.getDate());})();
 // "This month" and "Today" step through time via STATE.off:
 //   month mode -> off counts whole months (0 = this month, -1 = last month)
 //   today mode -> off counts days (0 = today, -1 = yesterday)
@@ -91,7 +91,7 @@ function refDay(){ return new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.
 function activeRange(){
   if(STATE.rangeKey==="custom"){
     if(STATE.custom[0] && STATE.custom[1]) return [STATE.custom[0],STATE.custom[1]];
-    return [new Date(2026,5,1), new Date(2026,5,30,23,59,59,999)];
+    return [new Date(TODAY.getFullYear(),TODAY.getMonth(),1), new Date(TODAY.getFullYear(),TODAY.getMonth()+1,0,23,59,59,999)];
   }
   if(STATE.rangeKey==="today"){
     let d=refDay();
@@ -741,6 +741,7 @@ bindSearch();
 document.addEventListener("click",e=>{ if(!e.target.closest(".pt")){ let t=document.getElementById("tip"); if(t)t.classList.remove("show"); }});
 (function(){let dm=document.getElementById("daymodal"); if(dm)dm.addEventListener("click",e=>{ if(e.target===dm)dm.classList.remove("show"); });})();
 (function(){let rt;window.addEventListener("resize",function(){clearTimeout(rt);rt=setTimeout(function(){try{render();}catch(e){}},160);});})();
+(function(){var f=document.getElementById("from"),t=document.getElementById("to");if(f&&t){var iso=function(d){var mm=d.getMonth()+1,dd=d.getDate();return d.getFullYear()+"-"+(mm<10?"0"+mm:mm)+"-"+(dd<10?"0"+dd:dd);};f.value=iso(new Date(TODAY.getFullYear(),TODAY.getMonth(),1));t.value=iso(TODAY);f.max=iso(TODAY);t.max=iso(TODAY);}})();
 bindFilter();
 syncFilterUI();
 pushHist();   // seed initial state so Back is disabled at the root
