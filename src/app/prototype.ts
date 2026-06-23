@@ -242,6 +242,16 @@ function priceSeries(rows){
   let excluded = weighed? (buys.length-weighable.length) : 0;
   return {weighed,series,buys,totG,weighablePaid,excluded,avgPerKg,inferredG};
 }
+// compact "avg price per unit" for a rhythm row: ₹/kg, ₹/L, or ₹ each
+function rhythmRate(ps, rows){
+  if(ps.weighed && ps.avgPerKg>0){
+    let mass=0, vol=0;
+    rows.forEach(r=>{ if(grams(r.sz)!=null){ let k=unitKind(r.sz); if(k==="vol")vol++; else if(k==="mass")mass++; } });
+    return inr(ps.avgPerKg)+(vol>mass?"/L":"/kg");
+  }
+  let q=rows.reduce((s,r)=>s+r.q,0), p=rows.reduce((s,r)=>s+r.p,0);
+  return (q>0&&p>0)? inr(p/q)+" each" : null;
+}
 
 function itemDetail(){
   let rows=filtered().filter(r=>r.cat===STATE.cat&&r.sub===STATE.sub&&r.it===STATE.it);
@@ -381,11 +391,11 @@ function rhythmView(){
   let byItem={}; LEDGER.forEach(r=>{ (byItem[r.it]=byItem[r.it]||[]).push(r); });
   let items=[];
   Object.entries(byItem).forEach(([it,rows])=>{
-    let buys=priceSeries(rows).buys;
+    let ps=priceSeries(rows); let buys=ps.buys;
     if(buys.length<3) return;                       // need a rhythm to show
     let gaps=[]; for(let i=1;i<buys.length;i++)gaps.push((buys[i].dt-buys[i-1].dt)/86400000);
     let avg=gaps.reduce((a,b)=>a+b,0)/gaps.length;
-    items.push({it,cat:rows[0].cat,sub:rows[0].sub,buys,n:buys.length,avg});
+    items.push({it,cat:rows[0].cat,sub:rows[0].sub,buys,n:buys.length,avg,rate:rhythmRate(ps,rows)});
   });
   items.sort((a,b)=> b.n-a.n || a.avg-b.avg);
   if(!items.length) return `<div class="empty mono">Need an item bought 3+ times to show a rhythm. Widen your data or log more buys.</div>`;
@@ -402,7 +412,7 @@ function rhythmView(){
     let lane=`<svg viewBox="0 0 ${W} 22" width="100%" height="22" style="display:block">${grid}`+
       `<line x1="${PADL}" y1="11" x2="${W-PADR}" y2="11" stroke="var(--line)"/>${dots}</svg>`;
     return `<div class="rhitem" data-rkitem="${encodeURIComponent(o.it)}" data-rkcat="${encodeURIComponent(o.cat)}" data-rksub="${encodeURIComponent(o.sub)}">
-      <div class="rhrow"><span class="rhname">${o.it}</span><span class="rhevery mono" style="color:${col.text}">every ${Math.round(o.avg)}d · ${o.n}×</span></div>
+      <div class="rhrow"><span class="rhname">${o.it}${o.rate?` <span class="rhunit mono">(${o.rate})</span>`:""}</span><span class="rhevery mono" style="color:${col.text}">every ${Math.round(o.avg)}d · ${o.n}×</span></div>
       ${lane}</div>`;
   }).join("");
   return `<div class="rkhero">
