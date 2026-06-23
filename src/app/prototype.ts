@@ -37,7 +37,7 @@ let LABELS = lsGet("khata_labels", null) || {cat:"Category", sub:"Subcategory", 
 function typeLabel(t){ return t==="platform"?"Platform":t==="item"?LABELS.it:t==="subcategory"?LABELS.sub:LABELS.cat; }
 
 const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-function rowDate(r){ return new Date(r.y!=null?r.y:2026, r.m!=null?r.m:5, r.d); }
+function rowDate(r){ return new Date(r.y!=null?r.y:new Date().getFullYear(), r.m!=null?r.m:0, r.d||1); }
 function fmtD(dt){ return dt.getDate()+" "+MONTHS[dt.getMonth()]; }
 function inr(n){ return "₹"+Math.round(n).toLocaleString("en-IN"); }
 
@@ -668,42 +668,75 @@ function bindSearch(){
 
 // ---- Excel upload (reads the master ledger in-browser via SheetJS) ----
 const MSET={jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
-function parseDayMon(v){
-  if(v instanceof Date) return {d:v.getDate(),m:v.getMonth(),y:v.getFullYear()};
-  let s=String(v||""); let mm=s.match(/(\d{1,2})[-\s/]*([A-Za-z]{3})/);
-  if(mm){ let mi=MSET[mm[2].toLowerCase()]; return {d:+mm[1], m:(mi==null?5:mi), y:2026}; }
-  return {d:1,m:5,y:2026};
+function sheetYear(name){ let m=String(name||"").match(/\b(19|20)\d{2}\b/); return m?+m[0]:null; }
+function sheetMonth(name){ let s=String(name||"").toLowerCase(); for(let k in MSET){ if(s.indexOf(k)>=0) return MSET[k]; } return null; }
+function parseRowDate(v, ctxY, ctxM){
+  if(v instanceof Date && !isNaN(v.getTime())) return {d:v.getDate(), m:v.getMonth(), y:v.getFullYear()};
+  let s=String(v==null?"":v).trim();
+  let iso=s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+  if(iso) return {d:+iso[3], m:+iso[2]-1, y:+iso[1]};
+  let m=s.match(/(\d{1,2})[-\s/.]+([A-Za-z]{3,})[-\s/.,']*(\d{2,4})?/);
+  if(m){ let mi=MSET[m[2].slice(0,3).toLowerCase()];
+    let y=m[3]?(+m[3]<100?2000+(+m[3]):+m[3]):(ctxY!=null?ctxY:new Date().getFullYear());
+    return {d:+m[1], m:(mi==null?(ctxM!=null?ctxM:0):mi), y:y}; }
+  return {d:1, m:(ctxM!=null?ctxM:new Date().getMonth()), y:(ctxY!=null?ctxY:new Date().getFullYear())};
+}
+function colMap(hdr){
+  let H=(hdr||[]).map(x=>String(x==null?"":x).toLowerCase().replace(/\s+/g," ").trim());
+  let f=p=>{ for(let i=0;i<H.length;i++) if(p(H[i])) return i; return -1; };
+  return { date:f(h=>h.indexOf("date")>=0),
+    plat:f(h=>h.indexOf("platform")>=0),
+    brand:f(h=>h.indexOf("brand")>=0),
+    item:f(h=>h==="item"||h.indexOf("item name")>=0),
+    variant:f(h=>h.indexOf("variant")>=0||h.indexOf("size")>=0),
+    cat:f(h=>h.indexOf("category")>=0&&h.indexOf("subcategory")<0),
+    sub:f(h=>h.indexOf("subcategory")>=0),
+    itype:f(h=>h.indexOf("item type")>=0),
+    qty:f(h=>h==="qty"||h.indexOf("quantity")>=0),
+    mrp:f(h=>h.indexOf("unit price")>=0||h.indexOf("(mrp)")>=0||h==="mrp"),
+    paid:f(h=>h.indexOf("final paid")>=0||h==="paid"||h.indexOf("amount paid")>=0) };
 }
 function setStatus(msg,err){ let s=document.getElementById("ustatus"); if(s){s.textContent=msg; s.style.color=err?"#B5730F":"var(--dim)";} }
 function loadWorkbook(buf,fname){
   if(typeof XLSX==="undefined"){ setStatus("Spreadsheet reader still loading - try again in a second",true); return; }
   try{
     let wb=XLSX.read(buf,{type:"array",cellDates:true});
-    let sheet=wb.Sheets["Full Ledger"]||wb.Sheets[wb.SheetNames[0]];
-    let aoa=XLSX.utils.sheet_to_json(sheet,{header:1,raw:true});
-    let hdr=aoa[0]||[];
-    let lab={cat:(hdr[7]!=null&&String(hdr[7]).trim())||"Category",
-             sub:(hdr[8]!=null&&String(hdr[8]).trim())||"Subcategory",
-             it:(hdr[9]!=null&&String(hdr[9]).trim())||"Item Type"};
-    let out=[];
-    for(let i=1;i<aoa.length;i++){
-      let r=aoa[i]; if(!r||r[0]==null||r[7]==null) continue;
-      let dm=parseDayMon(r[1]);
-      out.push({d:dm.d,m:dm.m,y:dm.y,cat:r[7],sub:r[8],it:r[9],
-        q:(typeof r[10]==="number"?r[10]:1),
-        p:(typeof r[14]==="number"?r[14]:0),
-        mrp:(typeof r[11]==="number"?r[11]:null),
-        pl:r[2], sz:(r[6]&&r[6]!=="?")?String(r[6]):null,
-        br:(r[4]&&r[4]!=="?")?String(r[4]):null,
-        nm:r[5]?String(r[5]):null});
+    let out=[], lab=null, tabs=[];
+    for(let si=0; si<wb.SheetNames.length; si++){
+      let nm=wb.SheetNames[si];
+      let aoa=XLSX.utils.sheet_to_json(wb.Sheets[nm],{header:1,raw:true});
+      if(!aoa.length) continue;
+      let hr=-1, idx=null;
+      for(let h=0; h<Math.min(aoa.length,6); h++){ let mp=colMap(aoa[h]); if(mp.date>=0 && (mp.cat>=0||mp.item>=0||mp.itype>=0)){ hr=h; idx=mp; break; } }
+      if(hr<0) continue;                       // not a ledger sheet (summaries skipped)
+      let H=aoa[hr];
+      if(!lab) lab={cat:(idx.cat>=0&&String(H[idx.cat]).trim())||"Category",
+                    sub:(idx.sub>=0&&String(H[idx.sub]).trim())||"Subcategory",
+                    it:(idx.itype>=0&&String(H[idx.itype]).trim())||"Item Type"};
+      let cy=sheetYear(nm), cm=sheetMonth(nm), n0=out.length;
+      for(let i=hr+1;i<aoa.length;i++){
+        let r=aoa[i]; if(!r) continue;
+        let cv=idx.cat>=0?r[idx.cat]:null, dv=idx.date>=0?r[idx.date]:null;
+        if(cv==null||String(cv).trim()===""||dv==null) continue;   // skip blank/subtotal rows
+        let dt=parseRowDate(dv, cy, cm);
+        out.push({d:dt.d,m:dt.m,y:dt.y, cat:cv, sub:idx.sub>=0?r[idx.sub]:null, it:idx.itype>=0?r[idx.itype]:null,
+          q:(typeof r[idx.qty]==="number"?r[idx.qty]:1),
+          p:(typeof r[idx.paid]==="number"?r[idx.paid]:0),
+          mrp:(idx.mrp>=0&&typeof r[idx.mrp]==="number"?r[idx.mrp]:null),
+          pl:idx.plat>=0?r[idx.plat]:null,
+          sz:(idx.variant>=0&&r[idx.variant]&&r[idx.variant]!=="?")?String(r[idx.variant]):null,
+          br:(idx.brand>=0&&r[idx.brand]&&r[idx.brand]!=="?")?String(r[idx.brand]):null,
+          nm:(idx.item>=0&&r[idx.item])?String(r[idx.item]):null});
+      }
+      if(out.length>n0) tabs.push(nm);
     }
-    if(!out.length){ setStatus("No rows found - is this the ledger's 'Full Ledger' sheet?",true); return; }
+    if(!out.length){ setStatus("No ledger rows found - check the sheet has a Date and a Category column",true); return; }
     LEDGER=out;
     LABELS=lab;
     persistLedger(out, lab, fname);
     HIST=[];HI=-1; STATE.level=0;STATE.cat=STATE.sub=STATE.it=null; STATE.rangeKey="month"; STATE.off=0;
     syncFilterUI(); pushHist(); render();
-    setStatus(out.length+" rows loaded from "+fname+" - saved on this device");
+    setStatus(out.length+" rows loaded from "+(tabs.length>1?tabs.length+" tabs":fname)+" - saved on this device");
   }catch(e){ setStatus("Couldn't read file: "+e.message,true); }
 }
 function bindUpload(){
@@ -812,6 +845,12 @@ if(SAVED_LEDGER && SAVED_LEDGER.length){
   function setHName(n) { hhCurrentName = n || "Household"; var rl = document.getElementById("rangelabel"); if (rl) rl.textContent = hhCurrentName; }
 
   show(gate, true);
+
+  if (!cfg.url || !cfg.anonKey) {
+    setErr(gErr, "This app is not configured. A valid supabase-config.js is required.");
+    if (btnIn) btnIn.style.display = "none";
+    return;
+  }
 
   function packet() { return { entries: LEDGER, labels: LABELS, updatedAt: new Date().toISOString() }; }
   function loadData(d) {
