@@ -242,12 +242,20 @@ function priceSeries(rows){
   let excluded = weighed? (buys.length-weighable.length) : 0;
   return {weighed,series,buys,totG,weighablePaid,excluded,avgPerKg,inferredG};
 }
-// compact "avg price per unit" for a rhythm row: ₹/kg, ₹/L, or ₹ each
+// compact "avg price for the size usually bought": e.g. ₹27 / 200 g, ₹52 / 1 L, ₹37 each
+function fmtAmt(g, isVol){
+  let big=isVol?"L":"kg", small=isVol?"ml":"g";
+  if(g>=1000){ let v=g/1000; return (Number.isInteger(v)?v:+v.toFixed(2))+" "+big; }
+  return Math.round(g)+" "+small;
+}
 function rhythmRate(ps, rows){
   if(ps.weighed && ps.avgPerKg>0){
-    let mass=0, vol=0;
-    rows.forEach(r=>{ if(grams(r.sz)!=null){ let k=unitKind(r.sz); if(k==="vol")vol++; else if(k==="mass")mass++; } });
-    return inr(ps.avgPerKg)+(vol>mass?"/L":"/kg");
+    let gc={}, mass=0, vol=0;
+    rows.forEach(r=>{ let g=grams(r.sz); if(g){ gc[g]=(gc[g]||0)+1; let k=unitKind(r.sz); if(k==="vol")vol++; else if(k==="mass")mass++; } });
+    let isVol=vol>mass;
+    let modal=Object.entries(gc).sort((a,b)=> b[1]-a[1] || (+a[0])-(+b[0]))[0];   // most-bought size; ties -> smaller
+    if(modal){ let g=+modal[0]; return inr(ps.avgPerKg*(g/1000))+" / "+fmtAmt(g,isVol); }
+    return inr(ps.avgPerKg)+(isVol?"/L":"/kg");
   }
   let q=rows.reduce((s,r)=>s+r.q,0), p=rows.reduce((s,r)=>s+r.p,0);
   return (q>0&&p>0)? inr(p/q)+" each" : null;
