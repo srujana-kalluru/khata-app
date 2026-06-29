@@ -33,6 +33,7 @@ function catColor(c){ if(CAT[c]) return CAT[c]; const hue=hashHue(c); return {fi
 let SAVED_LEDGER = lsGet("khata_ledger", null);
 let LEDGER = (SAVED_LEDGER && SAVED_LEDGER.length) ? SAVED_LEDGER : LEDGER_SEED.slice();
 let UPLOAD_B64 = null, UPLOAD_NAME = null;   // raw bytes + name of the last uploaded workbook, for re-download
+let EX = {};   // signatures of purchases excluded from all totals/graphs (persists across re-uploads)
 // UI labels for the three taxonomy levels - taken from your Excel header row, so renaming reflects here
 let LABELS = lsGet("khata_labels", null) || {cat:"Category", sub:"Subcategory", it:"Item Type"};
 function typeLabel(t){ return t==="platform"?"Platform":t==="item"?LABELS.it:t==="subcategory"?LABELS.sub:LABELS.cat; }
@@ -102,9 +103,12 @@ function activeRange(){
   let m=refMonth();
   return [m, new Date(m.getFullYear(), m.getMonth()+1, 0, 23,59,59,999)];
 }
+function rowSig(r){ return r.y+"-"+(r.m||0)+"-"+r.d+"|"+(r.it||"")+"|"+(r.nm||"")+"|"+r.p+"|"+(r.pl||""); }
+function applyEx(){ LEDGER.forEach(r=>{ r.ex = !!EX[rowSig(r)]; }); }
+function toggleExclude(sig){ if(EX[sig]) delete EX[sig]; else EX[sig]=1; applyEx(); persistLedger(LEDGER, LABELS, UPLOAD_NAME); }
 function filtered(){
   let [a,b]=activeRange();
-  return LEDGER.filter(r=>{let d=rowDate(r); return d>=a && d<=b && (!STATE.platform || r.pl===STATE.platform);});
+  return LEDGER.filter(r=>{let d=rowDate(r); return !r.ex && d>=a && d<=b && (!STATE.platform || r.pl===STATE.platform);});
 }
 
 // ---- aggregation ----
@@ -120,7 +124,7 @@ function accent(){ return STATE.cat ? catColor(STATE.cat).text : "#B5730F"; }
 function accentFill(){ return STATE.cat ? catColor(STATE.cat).fill : "#E3A53A"; }
 
 // ---- sparkline of daily spend over active range, weekly marks, dotted outside data ----
-function dataExtent(){ let ts=LEDGER.map(r=>rowDate(r).getTime()); return ts.length?[Math.min(...ts),Math.max(...ts)]:[0,0]; }
+function dataExtent(){ let ts=LEDGER.filter(r=>!r.ex).map(r=>rowDate(r).getTime()); return ts.length?[Math.min(...ts),Math.max(...ts)]:[0,0]; }
 function sparkline(rows){
   let [a,b]=activeRange();
   let bFloor=new Date(b.getFullYear(),b.getMonth(),b.getDate());
@@ -320,7 +324,7 @@ function itemDetail(){
   let volLabel = weighed? "volume" : "units";
   let volVal = weighed? ((inferredG>0?"~":"")+(volG/1000).toFixed(2)+" kg") : qty;
   // estimate depletion for this item from ALL its data (not range-limited)
-  let allItemRows=LEDGER.filter(r=>r.it===STATE.it);
+  let allItemRows=LEDGER.filter(r=>r.it===STATE.it && !r.ex);
   let aps=priceSeries(allItemRows), abuys=aps.buys, runsOut="—";
   if(abuys.length>=3){
     let g=[]; for(let i=1;i<abuys.length;i++)g.push((abuys[i].dt-abuys[i-1].dt)/86400000);
@@ -353,7 +357,7 @@ function emptyMsg(){ return `<div class="empty mono">No purchases in the selecte
 // ---- Restock tab: infer what's likely run out and nudge ----
 function restockList(){
   let today=dataExtent()[1];
-  let byItem={}; LEDGER.forEach(r=>{ (byItem[r.it]=byItem[r.it]||[]).push(r); });
+  let byItem={}; LEDGER.filter(r=>!r.ex).forEach(r=>{ (byItem[r.it]=byItem[r.it]||[]).push(r); });
   let out=[];
   Object.entries(byItem).forEach(([it,rows])=>{
     let ps=priceSeries(rows), buys=ps.buys;
@@ -397,7 +401,7 @@ function restockView(){
 // ---- Rhythm tab: when you actually buy each staple, on a shared timeline ----
 function rhythmView(){
   let [axMin,axMax]=dataExtent();
-  let byItem={}; LEDGER.forEach(r=>{ (byItem[r.it]=byItem[r.it]||[]).push(r); });
+  let byItem={}; LEDGER.filter(r=>!r.ex).forEach(r=>{ (byItem[r.it]=byItem[r.it]||[]).push(r); });
   let items=[];
   Object.entries(byItem).forEach(([it,rows])=>{
     let ps=priceSeries(rows); let buys=ps.buys;
@@ -466,7 +470,7 @@ function invAmount(rows){
   return totalQty+" pk";
 }
 function inventoryView(){
-  let byItem={}; LEDGER.forEach(r=>{ (byItem[r.it]=byItem[r.it]||[]).push(r); });
+  let byItem={}; LEDGER.filter(r=>!r.ex).forEach(r=>{ (byItem[r.it]=byItem[r.it]||[]).push(r); });
   let items=Object.entries(byItem).map(([it,rows])=>{
     let last=rows.slice().sort((a,b)=>rowDate(b)-rowDate(a))[0];
     return {it, cat:rows[0].cat, sub:rows[0].sub, last:rowDate(last), n:rows.length, amount:invAmount(rows)};
@@ -550,19 +554,22 @@ function bindChartTips(){
 
 // ---- day detail: all purchases on a given date, across platforms ----
 function showDay(y,m,d){
-  let rows=LEDGER.filter(r=>r.y===y && (r.m||0)===m && r.d===d);
-  if(!rows.length)return;
-  let dt=new Date(y,m,d), total=rows.reduce((s,r)=>s+r.p,0);
-  let byPlat={}; rows.forEach(r=>{(byPlat[r.pl]=byPlat[r.pl]||[]).push(r);});
-  let html=`<div class="dayhdr"><div><div class="iname" style="font-size:20px">${fmtD(dt)}</div><div class="sub mono">${rows.length} items · ${inr(total)} across ${Object.keys(byPlat).length} platform${Object.keys(byPlat).length>1?'s':''}</div></div><span class="dayclose" id="dayclose">✕</span></div>`;
+  let all=LEDGER.filter(r=>r.y===y && (r.m||0)===m && r.d===d);
+  if(!all.length)return;
+  let dt=new Date(y,m,d);
+  let incl=all.filter(r=>!r.ex), exCount=all.length-incl.length, total=incl.reduce((s,r)=>s+r.p,0);
+  let byPlat={}; all.forEach(r=>{(byPlat[r.pl]=byPlat[r.pl]||[]).push(r);});
+  let np=Object.keys(byPlat).length;
+  let html=`<div class="dayhdr"><div><div class="iname" style="font-size:20px">${fmtD(dt)}</div><div class="sub mono">${incl.length} item${incl.length!==1?'s':''} · ${inr(total)} across ${np} platform${np>1?'s':''}${exCount?` · ${exCount} excluded`:''}</div></div><span class="dayclose" id="dayclose">✕</span></div>`;
   Object.keys(byPlat).sort().forEach(pl=>{
-    let pt=byPlat[pl].reduce((s,r)=>s+r.p,0);
+    let pt=byPlat[pl].filter(r=>!r.ex).reduce((s,r)=>s+r.p,0);
     html+=`<div class="dayplat">${pl} · ${inr(pt)}</div>`;
-    byPlat[pl].forEach(r=>{ html+=`<div class="dayline"><div><div class="daynm">${r.it}</div><div class="daysub">${r.br?r.br+' · ':''}${r.sz||''}${r.q>1?' × '+r.q:''}</div></div><div class="daypaid">${inr(r.p)}</div></div>`; });
+    byPlat[pl].forEach(r=>{ html+=`<div class="dayline${r.ex?' exline':''}"><div><div class="daynm">${r.it}</div><div class="daysub">${r.br?r.br+' · ':''}${r.sz||''}${r.q>1?' × '+r.q:''}</div></div><div class="dayright"><div class="daypaid">${inr(r.p)}</div><button class="exbtn" data-exsig="${encodeURIComponent(rowSig(r))}">${r.ex?'include':'exclude'}</button></div></div>`; });
   });
-  document.getElementById("daycard").innerHTML=html;
+  let card=document.getElementById("daycard"); card.innerHTML=html;
   document.getElementById("daymodal").classList.add("show");
   document.getElementById("dayclose").onclick=()=>document.getElementById("daymodal").classList.remove("show");
+  card.querySelectorAll(".exbtn").forEach(b=>{ b.onclick=()=>{ toggleExclude(decodeURIComponent(b.getAttribute("data-exsig"))); showDay(y,m,d); render(); }; });
 }
 
 function bind(){
@@ -756,6 +763,7 @@ function loadWorkbook(buf,fname){
     if(!out.length){ setStatus("No ledger rows found - check the sheet has a Date and a Category column",true); return; }
     LEDGER=out;
     LABELS=lab;
+    applyEx();
     try{ UPLOAD_B64=abToB64(buf); UPLOAD_NAME=fname; }catch(e){}
     persistLedger(out, lab, fname);
     HIST=[];HI=-1; STATE.level=0;STATE.cat=STATE.sub=STATE.it=null; STATE.rangeKey="month"; STATE.off=0;
@@ -879,10 +887,12 @@ if(SAVED_LEDGER && SAVED_LEDGER.length){
     return;
   }
 
-  function packet() { return { entries: LEDGER, labels: LABELS, file: UPLOAD_B64 || null, fileName: UPLOAD_NAME || null, updatedAt: new Date().toISOString() }; }
+  function packet() { return { entries: LEDGER, labels: LABELS, excluded: Object.keys(EX), file: UPLOAD_B64 || null, fileName: UPLOAD_NAME || null, updatedAt: new Date().toISOString() }; }
   function loadData(d) {
     if (d && Array.isArray(d.entries)) LEDGER = d.entries;
     if (d && d.labels) LABELS = d.labels;
+    EX = {}; if (d && Array.isArray(d.excluded)) d.excluded.forEach(function (s) { EX[s] = 1; });
+    applyEx();
     UPLOAD_B64 = (d && d.file) || null; UPLOAD_NAME = (d && d.fileName) || null;
     refreshDownloadBtn();
     render();

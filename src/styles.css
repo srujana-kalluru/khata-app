@@ -71,6 +71,11 @@ body{background:var(--paper);font-family:'Inter',sans-serif;color:var(--ink);
 .daynm{font-family:'Bricolage Grotesque',sans-serif;font-weight:500;font-size:13px}
 .daysub{font-size:10px;color:var(--dim);font-family:'Space Mono';margin-top:2px}
 .daypaid{font-family:'Space Mono';font-size:12px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.dayright{display:flex;align-items:center;gap:10px}
+.exbtn{font-family:'Space Mono';font-size:9.5px;padding:3px 8px;border-radius:6px;border:1px solid var(--line);background:transparent;color:var(--dim);cursor:pointer;white-space:nowrap}
+.exbtn:hover{color:var(--accent);border-color:var(--accent)}
+.exline{opacity:.5}
+.exline .daypaid{text-decoration:line-through}
 .rtag{font-family:'Space Mono';font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;white-space:nowrap}
 .spk{color:#C0392B;font-size:9px;margin-right:5px;vertical-align:1px}
 .spikenote{display:flex;align-items:center;gap:7px;margin-top:10px;font-family:'Space Mono';font-size:10.5px;color:#C0392B}
