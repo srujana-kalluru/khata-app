@@ -106,6 +106,7 @@ function activeRange(){
 function rowSig(r){ return r.y+"-"+(r.m||0)+"-"+r.d+"|"+(r.it||"")+"|"+(r.nm||"")+"|"+r.p+"|"+(r.pl||""); }
 function applyEx(){ LEDGER.forEach(r=>{ r.ex = !!EX[rowSig(r)]; }); }
 function toggleExclude(sig){ if(EX[sig]) delete EX[sig]; else EX[sig]=1; applyEx(); persistLedger(LEDGER, LABELS, UPLOAD_NAME); }
+function toggleExcludeDay(it,y,m,d){ let rs=LEDGER.filter(r=>r.it===it && r.y===y && (r.m||0)===m && r.d===d); if(!rs.length)return; let allEx=rs.every(r=>r.ex); rs.forEach(r=>{ let s=rowSig(r); if(allEx) delete EX[s]; else EX[s]=1; }); applyEx(); persistLedger(LEDGER, LABELS, UPLOAD_NAME); }
 function filtered(){
   let [a,b]=activeRange();
   return LEDGER.filter(r=>{let d=rowDate(r); return !r.ex && d>=a && d<=b && (!STATE.platform || r.pl===STATE.platform);});
@@ -334,6 +335,8 @@ function itemDetail(){
       runsOut = du<=0? "now" : "~"+Math.round(du)+"d"; }
   }
   let restockMain = avgGap? ("~"+avgGap+" days") : "one buy";
+  let pByDay={}; LEDGER.filter(r=>r.it===STATE.it).forEach(r=>{ let k=r.y+"-"+(r.m||0)+"-"+r.d; (pByDay[k]=pByDay[k]||{y:r.y,m:(r.m||0),d:r.d,paid:0,ex:true}); pByDay[k].paid+=r.p; if(!r.ex)pByDay[k].ex=false; });
+  let purchaseList=Object.values(pByDay).sort((a,b)=>new Date(b.y,b.m,b.d)-new Date(a.y,a.m,a.d)).map(o=>`<div class="prow${o.ex?' exline':''}"><span class="dot mono daychip" data-y="${o.y}" data-m="${o.m}" data-d="${o.d}" style="border-color:${ac};color:${ac};cursor:pointer">${fmtD(new Date(o.y,o.m,o.d))}</span><span class="ppaid mono">${inr(o.paid)}</span><button class="exbtn" data-exday="${o.y}|${o.m}|${o.d}">${o.ex?'include':'exclude'}</button></div>`).join("");
   return `<div class="detail">
     <div class="dhead">
       <div><div class="iname">${STATE.it}</div><div class="sub mono">bought ${nBuys}× · ${weighed?((inferredG>0?"~":"")+(volG/1000).toFixed(2)+" kg"):qty+" units"}</div></div>
@@ -347,8 +350,8 @@ function itemDetail(){
       <div class="stat"><div class="tk">restock</div><div class="sv mono">${restockMain}</div><div class="sv2 mono">buy ${typQty}</div></div>
       <div class="stat"><div class="tk">runs out</div><div class="sv mono">${runsOut}</div></div>
     </div>
-    <div class="eb" style="margin:16px 0 8px">purchase dates</div>
-    <div class="tl">${buys.map(o=>`<span class="dot mono daychip" data-y="${o.dt.getFullYear()}" data-m="${o.dt.getMonth()}" data-d="${o.dt.getDate()}" style="border-color:${ac};color:${ac};cursor:pointer">${fmtD(o.dt)}</span>`).join("")}</div>
+    <div class="eb" style="margin:16px 0 8px">purchases · exclude a one-off to drop it from all totals</div>
+    <div class="plist">${purchaseList}</div>
   </div>`;
 }
 
@@ -574,6 +577,7 @@ function showDay(y,m,d){
 
 function bind(){
   app().querySelectorAll(".daychip").forEach(el=>el.onclick=()=>showDay(+el.getAttribute("data-y"),+el.getAttribute("data-m"),+el.getAttribute("data-d")));
+  app().querySelectorAll(".exbtn[data-exday]").forEach(b=>b.onclick=(e)=>{ e.stopPropagation(); let p=b.getAttribute("data-exday").split("|"); toggleExcludeDay(STATE.it,+p[0],+p[1],+p[2]); render(); });
   app().querySelectorAll("[data-rkitem]").forEach(el=>el.onclick=()=>{
     let it=decodeURIComponent(el.getAttribute("data-rkitem"));
     let cat=decodeURIComponent(el.getAttribute("data-rkcat"));
@@ -636,8 +640,7 @@ function lsSet(k,v){ try{localStorage.setItem(k,JSON.stringify(v));}catch(e){} }
 function persistLedger(rows, labels, fname){ lsSet("khata_labels",labels); lsSet("khata_ledger",rows); lsSet("khata_ledger_name",fname); }
 function abToB64(buf){ let b=new Uint8Array(buf),s="",c=0x8000; for(let i=0;i<b.length;i+=c){ s+=String.fromCharCode.apply(null,b.subarray(i,i+c)); } return btoa(s); }
 function b64ToBlob(b64,type){ let bin=atob(b64),n=bin.length,a=new Uint8Array(n); for(let i=0;i<n;i++)a[i]=bin.charCodeAt(i); return new Blob([a],{type:type||"application/octet-stream"}); }
-function refreshDownloadBtn(){ let b=document.getElementById("dlxlsx"); if(b) b.style.display=UPLOAD_B64?"inline-flex":"none"; }
-function downloadUpload(){ if(!UPLOAD_B64)return; let blob=b64ToBlob(UPLOAD_B64,"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"); let url=URL.createObjectURL(blob); let a=document.createElement("a"); a.href=url; a.download=UPLOAD_NAME||"khata-ledger.xlsx"; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(function(){URL.revokeObjectURL(url);},1500); }
+function downloadUpload(){ if(!UPLOAD_B64){ setStatus("No stored file yet - upload your Excel first to enable download.",true); return; } let blob=b64ToBlob(UPLOAD_B64,"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"); let url=URL.createObjectURL(blob); let a=document.createElement("a"); a.href=url; a.download=UPLOAD_NAME||"khata-ledger.xlsx"; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(function(){URL.revokeObjectURL(url);},1500); }
 let RECENTS=(lsGet("khata_recents",[])||[]).filter(x=>x&&typeof x==="object"&&x.name);
 function addRecent(r){ if(!r||!r.name)return; RECENTS=[{type:r.type,name:r.name,cat:r.cat||null,sub:r.sub||null},...RECENTS.filter(x=>!(x.type===r.type&&x.name===r.name))].slice(0,3); lsSet("khata_recents",RECENTS); }
 function navigateTo(r){
@@ -769,12 +772,10 @@ function loadWorkbook(buf,fname){
     HIST=[];HI=-1; STATE.level=0;STATE.cat=STATE.sub=STATE.it=null; STATE.rangeKey="month"; STATE.off=0;
     syncFilterUI(); pushHist(); render();
     setStatus(out.length+" rows loaded from "+(tabs.length>1?tabs.length+" tabs":fname)+" - saved on this device");
-    refreshDownloadBtn();
   }catch(e){ setStatus("Couldn't read file: "+e.message,true); }
 }
 function bindUpload(){
   let dl=document.getElementById("dlxlsx"); if(dl)dl.onclick=downloadUpload;
-  refreshDownloadBtn();
   let inp=document.getElementById("xlsxfile"); if(!inp)return;
   inp.onchange=()=>{ let f=inp.files&&inp.files[0]; if(!f)return;
     setStatus("reading "+f.name+" ...");
@@ -894,7 +895,6 @@ if(SAVED_LEDGER && SAVED_LEDGER.length){
     EX = {}; if (d && Array.isArray(d.excluded)) d.excluded.forEach(function (s) { EX[s] = 1; });
     applyEx();
     UPLOAD_B64 = (d && d.file) || null; UPLOAD_NAME = (d && d.fileName) || null;
-    refreshDownloadBtn();
     render();
   }
 
