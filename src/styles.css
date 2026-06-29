@@ -20,8 +20,8 @@ body{background:var(--paper);font-family:'Inter',sans-serif;color:var(--ink);
 /* frosted sticky title (depth + deference) */
 .brandbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;
   margin:0 -14px 16px;padding:16px 16px 12px;
-  background:rgba(235,227,207,.82);backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);
-  border-bottom:1px solid rgba(218,208,185,.7)}
+  background:color-mix(in srgb, var(--paper) 82%, transparent);backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);
+  border-bottom:1px solid color-mix(in srgb, var(--line) 70%, transparent)}
 .wordmark{font-family:'Bricolage Grotesque';font-weight:800;font-size:23px;letter-spacing:-.6px;flex-shrink:0}
 .wordmark span{color:var(--accent)}
 .rangelabel{font-family:'Space Mono';font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;padding-left:12px;text-align:right}
@@ -203,7 +203,7 @@ app-root{display:contents}
 
 /* ---- Google sign-in gate ---- */
 .authgate{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;
-    background:#EBE3CF;padding:24px;font-family:'Inter',system-ui,sans-serif}
+    background:var(--paper);padding:24px;font-family:'Inter',system-ui,sans-serif}
   .authcard{width:100%;max-width:320px;display:flex;flex-direction:column;gap:10px;
     background:#fff;border:1px solid #E6DECF;border-radius:18px;padding:26px 22px;
     box-shadow:0 12px 40px rgba(120,90,40,.10)}
