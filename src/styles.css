@@ -1,6 +1,6 @@
 
 :root{
-  --paper:#EBE3CF; --card:#FFFFFF; --line:#DAD0B9; --ink:#1F1D16;
+  --paper:#E1D4B6; --card:#FFFFFF; --line:#CEC3A4; --ink:#1F1D16;
   --dim:#766D5A; --faint:#9D9379; --accent:#B5730F;
   --inset:rgba(35,33,27,.07);
   --r-sm:10px; --r:14px; --r-lg:20px; --r-xl:24px;
@@ -76,6 +76,10 @@ body{background:var(--paper);font-family:'Inter',sans-serif;color:var(--ink);
 .exbtn:hover{color:var(--accent);border-color:var(--accent)}
 .exline{opacity:.5}
 .exline .daypaid{text-decoration:line-through}
+.plist{display:flex;flex-direction:column}
+.prow{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line)}
+.prow:last-child{border-bottom:none}
+.ppaid{margin-left:auto;font-size:12px;font-variant-numeric:tabular-nums}
 .rtag{font-family:'Space Mono';font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;white-space:nowrap}
 .spk{color:#C0392B;font-size:9px;margin-right:5px;vertical-align:1px}
 .spikenote{display:flex;align-items:center;gap:7px;margin-top:10px;font-family:'Space Mono';font-size:10.5px;color:#C0392B}
