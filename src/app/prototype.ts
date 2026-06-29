@@ -32,6 +32,7 @@ function catColor(c){ if(CAT[c]) return CAT[c]; const hue=hashHue(c); return {fi
 // Live ledger - starts from the seed baked in, replaced when a master Excel is uploaded
 let SAVED_LEDGER = lsGet("khata_ledger", null);
 let LEDGER = (SAVED_LEDGER && SAVED_LEDGER.length) ? SAVED_LEDGER : LEDGER_SEED.slice();
+let UPLOAD_B64 = null, UPLOAD_NAME = null;   // raw bytes + name of the last uploaded workbook, for re-download
 // UI labels for the three taxonomy levels - taken from your Excel header row, so renaming reflects here
 let LABELS = lsGet("khata_labels", null) || {cat:"Category", sub:"Subcategory", it:"Item Type"};
 function typeLabel(t){ return t==="platform"?"Platform":t==="item"?LABELS.it:t==="subcategory"?LABELS.sub:LABELS.cat; }
@@ -626,6 +627,10 @@ function bindNav(){ document.getElementById("backbtn").onclick=goBack; document.
 function lsGet(k,def){ try{let v=localStorage.getItem(k); return v?JSON.parse(v):def;}catch(e){return def;} }
 function lsSet(k,v){ try{localStorage.setItem(k,JSON.stringify(v));}catch(e){} }
 function persistLedger(rows, labels, fname){ lsSet("khata_labels",labels); lsSet("khata_ledger",rows); lsSet("khata_ledger_name",fname); }
+function abToB64(buf){ let b=new Uint8Array(buf),s="",c=0x8000; for(let i=0;i<b.length;i+=c){ s+=String.fromCharCode.apply(null,b.subarray(i,i+c)); } return btoa(s); }
+function b64ToBlob(b64,type){ let bin=atob(b64),n=bin.length,a=new Uint8Array(n); for(let i=0;i<n;i++)a[i]=bin.charCodeAt(i); return new Blob([a],{type:type||"application/octet-stream"}); }
+function refreshDownloadBtn(){ let b=document.getElementById("dlxlsx"); if(b) b.style.display=UPLOAD_B64?"inline-flex":"none"; }
+function downloadUpload(){ if(!UPLOAD_B64)return; let blob=b64ToBlob(UPLOAD_B64,"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"); let url=URL.createObjectURL(blob); let a=document.createElement("a"); a.href=url; a.download=UPLOAD_NAME||"khata-ledger.xlsx"; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(function(){URL.revokeObjectURL(url);},1500); }
 let RECENTS=(lsGet("khata_recents",[])||[]).filter(x=>x&&typeof x==="object"&&x.name);
 function addRecent(r){ if(!r||!r.name)return; RECENTS=[{type:r.type,name:r.name,cat:r.cat||null,sub:r.sub||null},...RECENTS.filter(x=>!(x.type===r.type&&x.name===r.name))].slice(0,3); lsSet("khata_recents",RECENTS); }
 function navigateTo(r){
@@ -751,13 +756,17 @@ function loadWorkbook(buf,fname){
     if(!out.length){ setStatus("No ledger rows found - check the sheet has a Date and a Category column",true); return; }
     LEDGER=out;
     LABELS=lab;
+    try{ UPLOAD_B64=abToB64(buf); UPLOAD_NAME=fname; }catch(e){}
     persistLedger(out, lab, fname);
     HIST=[];HI=-1; STATE.level=0;STATE.cat=STATE.sub=STATE.it=null; STATE.rangeKey="month"; STATE.off=0;
     syncFilterUI(); pushHist(); render();
     setStatus(out.length+" rows loaded from "+(tabs.length>1?tabs.length+" tabs":fname)+" - saved on this device");
+    refreshDownloadBtn();
   }catch(e){ setStatus("Couldn't read file: "+e.message,true); }
 }
 function bindUpload(){
+  let dl=document.getElementById("dlxlsx"); if(dl)dl.onclick=downloadUpload;
+  refreshDownloadBtn();
   let inp=document.getElementById("xlsxfile"); if(!inp)return;
   inp.onchange=()=>{ let f=inp.files&&inp.files[0]; if(!f)return;
     setStatus("reading "+f.name+" ...");
@@ -870,10 +879,12 @@ if(SAVED_LEDGER && SAVED_LEDGER.length){
     return;
   }
 
-  function packet() { return { entries: LEDGER, labels: LABELS, updatedAt: new Date().toISOString() }; }
+  function packet() { return { entries: LEDGER, labels: LABELS, file: UPLOAD_B64 || null, fileName: UPLOAD_NAME || null, updatedAt: new Date().toISOString() }; }
   function loadData(d) {
     if (d && Array.isArray(d.entries)) LEDGER = d.entries;
     if (d && d.labels) LABELS = d.labels;
+    UPLOAD_B64 = (d && d.file) || null; UPLOAD_NAME = (d && d.fileName) || null;
+    refreshDownloadBtn();
     render();
   }
 
