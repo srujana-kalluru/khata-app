@@ -1,6 +1,6 @@
 // @ts-nocheck
 /* eslint-disable */
-// Verbatim khata app logic (recovered from app-debug.apk). Runs once after the view mounts.
+// Khata app logic; bootKhata() runs once, after the Angular view mounts.
 declare const XLSX: any;
 export function bootKhata(): void {
 
