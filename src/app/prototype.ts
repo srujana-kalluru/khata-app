@@ -435,7 +435,7 @@ function rhythmView(){
   let axisSvg=`<svg viewBox="0 0 ${W} 14" width="100%" height="14" style="display:block">${axTicks}</svg>`;
   let lanes=items.map(o=>{
     let col=catColor(o.cat);
-    let dots=o.buys.map(b=>`<circle cx="${xs(b.dt.getTime()).toFixed(1)}" cy="11" r="3.6" fill="${col.text}"/>`).join("");
+    let dots=o.buys.map(b=>{let x=xs(b.dt.getTime()).toFixed(1),tip=fmtD(b.dt)+" "+b.dt.getFullYear();return `<circle class="pt" data-tip="${tip}" cx="${x}" cy="11" r="9" fill="transparent"/><circle class="pt" data-tip="${tip}" cx="${x}" cy="11" r="3.6" fill="${col.text}"/>`;}).join("");
     let lane=`<svg viewBox="0 0 ${W} 22" width="100%" height="22" style="display:block">${grid}`+
       `<line x1="${PADL}" y1="11" x2="${W-PADR}" y2="11" stroke="var(--line)"/>${dots}</svg>`;
     return `<div class="rhitem" data-rkitem="${encodeURIComponent(o.it)}" data-rkcat="${encodeURIComponent(o.cat)}" data-rksub="${encodeURIComponent(o.sub)}">
@@ -509,7 +509,7 @@ function inventoryView(){
 
 function render(){
   if(STATE.tab==="restock"){ app().innerHTML=restockView(); bind(); return; }
-  if(STATE.tab==="rhythm"){ app().innerHTML=rhythmView(); bind(); return; }
+  if(STATE.tab==="rhythm"){ app().innerHTML=rhythmView(); bind(); bindChartTips(); return; }
   if(STATE.tab==="inventory"){ app().innerHTML=inventoryView(); bind(); return; }
   let rows=filtered();
   let html="";
