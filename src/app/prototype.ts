@@ -107,6 +107,18 @@ function rowSig(r){ return r.y+"-"+(r.m||0)+"-"+r.d+"|"+(r.it||"")+"|"+(r.nm||""
 function applyEx(){ LEDGER.forEach(r=>{ r.ex = !!EX[rowSig(r)]; }); }
 function toggleExclude(sig){ if(EX[sig]) delete EX[sig]; else EX[sig]=1; applyEx(); persistLedger(LEDGER, LABELS, UPLOAD_NAME); }
 function toggleExcludeDay(it,y,m,d){ let rs=LEDGER.filter(r=>r.it===it && r.y===y && (r.m||0)===m && r.d===d); if(!rs.length)return; let allEx=rs.every(r=>r.ex); rs.forEach(r=>{ let s=rowSig(r); if(allEx) delete EX[s]; else EX[s]=1; }); applyEx(); persistLedger(LEDGER, LABELS, UPLOAD_NAME); }
+function showExcluded(){
+  let rows=LEDGER.filter(r=>r.ex).sort((a,b)=>rowDate(b)-rowDate(a));
+  let card=document.getElementById("daycard"); if(!card)return;
+  let total=rows.reduce((s,r)=>s+r.p,0);
+  let html=`<div class="dayhdr"><div><div class="iname" style="font-size:20px">Excluded purchases</div><div class="sub mono">${rows.length?rows.length+" hidden from totals · "+inr(total):"nothing excluded"}</div></div><span class="dayclose" id="dayclose">✕</span></div>`;
+  if(!rows.length) html+=`<div class="sub mono" style="padding:10px 0">Nothing is excluded. Open an item or a day and tap "exclude" to hide a one-off purchase.</div>`;
+  rows.forEach(r=>{ html+=`<div class="dayline exline"><div><div class="daynm">${r.it}</div><div class="daysub">${fmtD(rowDate(r))}${r.pl?' · '+r.pl:''}${r.br?' · '+r.br:''}</div></div><div class="dayright"><div class="daypaid">${inr(r.p)}</div><button class="exbtn" data-exsig="${encodeURIComponent(rowSig(r))}">include</button></div></div>`; });
+  card.innerHTML=html;
+  document.getElementById("daymodal").classList.add("show");
+  document.getElementById("dayclose").onclick=()=>document.getElementById("daymodal").classList.remove("show");
+  card.querySelectorAll(".exbtn").forEach(b=>{ b.onclick=()=>{ toggleExclude(decodeURIComponent(b.getAttribute("data-exsig"))); showExcluded(); render(); }; });
+}
 function filtered(){
   let [a,b]=activeRange();
   return LEDGER.filter(r=>{let d=rowDate(r); return !r.ex && d>=a && d<=b && (!STATE.platform || r.pl===STATE.platform);});
@@ -514,6 +526,8 @@ function render(){
     html+=hero(rows,"total spent",`${rows.length} items · ${dys} days`);
     html+=`<div class="eb sect">spend by ${LABELS.cat.toLowerCase()} &nbsp;·&nbsp; tap to drill</div>`;
     html+= m.length ? m.map(([c,o])=>{let col=catColor(c);return bar(c,o.paid,maxV,col.fill,col.text,true);}).join("") : emptyMsg();
+    let exN=LEDGER.filter(r=>r.ex).length;
+    if(exN) html+=`<div class="exnote" id="exreview">${exN} purchase${exN>1?'s':''} excluded from totals · <span class="exlink">review</span></div>`;
   } else if(STATE.level===1){
     let cr=rows.filter(r=>r.cat===STATE.cat);
     let m=sortedEntries(agg(cr,r=>r.sub));
@@ -578,6 +592,7 @@ function showDay(y,m,d){
 function bind(){
   app().querySelectorAll(".daychip").forEach(el=>el.onclick=()=>showDay(+el.getAttribute("data-y"),+el.getAttribute("data-m"),+el.getAttribute("data-d")));
   app().querySelectorAll(".exbtn[data-exday]").forEach(b=>b.onclick=(e)=>{ e.stopPropagation(); let p=b.getAttribute("data-exday").split("|"); toggleExcludeDay(STATE.it,+p[0],+p[1],+p[2]); render(); });
+  let exr=app().querySelector("#exreview"); if(exr)exr.onclick=showExcluded;
   app().querySelectorAll("[data-rkitem]").forEach(el=>el.onclick=()=>{
     let it=decodeURIComponent(el.getAttribute("data-rkitem"));
     let cat=decodeURIComponent(el.getAttribute("data-rkcat"));
