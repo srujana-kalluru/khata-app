@@ -92,9 +92,9 @@ body{background:var(--paper);font-family:'Inter',sans-serif;color:var(--ink);
 .pbanner b{color:var(--ink);font-weight:700}
 .pclear{margin-left:auto;cursor:pointer;color:var(--accent)}
 /* segmented control (deference + depth) */
-.tabs{display:flex;gap:0;margin-bottom:18px;background:var(--inset);border-radius:var(--r);padding:3px}
+.tabs{display:flex;gap:0;margin-bottom:18px;background:rgba(35,33,27,.15);border-radius:var(--r);padding:3px}
 .tab{flex:1;font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:13.5px;padding:9px;
-  border-radius:11px;border:none;background:transparent;color:var(--dim);cursor:pointer;
+  border-radius:11px;border:none;background:transparent;color:#4E4636;cursor:pointer;
   transition:color .2s,box-shadow .2s,background .2s,transform .15s var(--ease)}
 .tab.on{background:var(--card);color:var(--ink);box-shadow:0 2px 6px rgba(60,48,24,.12),0 1px 2px rgba(60,48,24,.06)}
 .tab:active{transform:scale(.97)}
