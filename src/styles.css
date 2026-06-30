@@ -189,8 +189,7 @@ body{background:var(--paper);font-family:'Inter',sans-serif;color:var(--ink);
   padding:18px;text-align:center;line-height:1.6}
 /* rhythm tab */
 .rhaxis{margin-bottom:4px}
-.rhitem{padding:9px 0;cursor:pointer;border-bottom:1px solid var(--line);transition:opacity .12s,transform .15s var(--ease)}
-.rhitem:last-of-type{border-bottom:none}
+.rhitem{padding:9px 0;cursor:pointer;transition:opacity .12s,transform .15s var(--ease)}
 .rhitem:hover{opacity:.72}
 .rhitem:active{transform:scale(.99)}
 .rhrow{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:3px}
