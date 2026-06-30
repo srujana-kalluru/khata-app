@@ -338,7 +338,7 @@ function itemDetail(){
   let volVal = weighed? ((inferredG>0?"~":"")+(volG/1000).toFixed(2)+" kg") : qty;
   // estimate depletion for this item from ALL its data (not range-limited)
   let allItemRows=LEDGER.filter(r=>r.it===STATE.it && !r.ex);
-  let aps=priceSeries(allItemRows), abuys=aps.buys, runsOut="—";
+  let aps=priceSeries(allItemRows), abuys=aps.buys, runsOut="-";
   if(abuys.length>=3){
     let g=[]; for(let i=1;i<abuys.length;i++)g.push((abuys[i].dt-abuys[i-1].dt)/86400000);
     let ai=g.reduce((a,b)=>a+b,0)/g.length;
@@ -937,7 +937,7 @@ if(SAVED_LEDGER && SAVED_LEDGER.length){
         householdCode = d.code; isOwner = (d.created_by === (user && user.id));
         setHName(d.name); loadData(d.data || {});
         if (hhLink) hhLink.style.display = "inline-flex";
-        setStatus("synced with " + hhCurrentName);
+        //setStatus("synced with " + hhCurrentName);
       });
   }
   function createHousehold() {
