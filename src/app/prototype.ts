@@ -890,7 +890,7 @@ if(SAVED_LEDGER && SAVED_LEDGER.length){
 
   function show(el, s) { if (el) el.style.display = s ? "flex" : "none"; }
   function setErr(el, m) { if (el) el.textContent = m || ""; }
-  function setHName(n) { hhCurrentName = n || "Household"; var rl = document.getElementById("rangelabel"); if (rl) rl.textContent = hhCurrentName; }
+  function setHName(n) { hhCurrentName = n || "Household"; var rl = document.getElementById("hhlabel"); if (rl) rl.textContent = hhCurrentName; }
 
   show(gate, true);
 

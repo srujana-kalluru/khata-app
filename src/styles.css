@@ -230,6 +230,8 @@ app-root{display:contents}
   .hhbtn svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
   .hhbtn:hover{background:rgba(181,115,15,.16);box-shadow:var(--sh)}
   .hhbtn:active{transform:scale(.96)}
+  .hhbtn{min-width:0}
+  #hhlabel{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 
 /* ---- household modal ---- */
