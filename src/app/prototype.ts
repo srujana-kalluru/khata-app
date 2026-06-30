@@ -410,8 +410,7 @@ function restockView(){
       <div class="eb">restock for ${fmtD(tomorrow)}</div>
       <div class="num" style="color:var(--accent)">${count}</div>
       <div class="sub mono">item${count!==1?'s':''} to buy now or tomorrow</div>
-    </div>${body}
-    <div class="rknote mono">Inferred from your buying rhythm across all platforms. Assumes you log purchases nightly and that buying an item again means the previous lot ran out. Only items bought 3+ times are shown; one-offs are skipped.</div>`;
+    </div>${body}`;
 }
 // ---- Rhythm tab: when you actually buy each staple, on a shared timeline ----
 function rhythmView(){
@@ -449,8 +448,7 @@ function rhythmView(){
       <div class="sub mono">staples with a steady pattern</div>
     </div>
     <div class="rhaxis">${axisSvg}</div>
-    ${lanes}
-    <div class="rknote mono">Each dot is a day you bought the item, plotted on a shared timeline with weekly marks. Even spacing means a predictable rhythm; the figure on the right is your average gap between buys. Only items bought 3+ times are shown. Tap a row to open its price trend.</div>`;
+    ${lanes}`;
 }
 function setTab(t){
   STATE.tab=t;
@@ -506,8 +504,7 @@ function inventoryView(){
       <div class="eb">in your kitchen</div>
       <div class="num" style="color:var(--accent)">${items.length}</div>
       <div class="sub mono">items on hand · ${cats.length} categories</div>
-    </div>${body}
-    <div class="rknote mono">Everything you've logged, assumed still on hand. "Added" is the most recent purchase; the amount is the total logged quantity. Tap an item for its price history.</div>`;
+    </div>${body}`;
 }
 
 function render(){
@@ -786,7 +783,7 @@ function loadWorkbook(buf,fname){
     persistLedger(out, lab, fname);
     HIST=[];HI=-1; STATE.level=0;STATE.cat=STATE.sub=STATE.it=null; STATE.rangeKey="month"; STATE.off=0;
     syncFilterUI(); pushHist(); render();
-    setStatus(out.length+" rows loaded from "+(tabs.length>1?tabs.length+" tabs":fname)+" - saved on this device");
+    setStatus(out.length+" rows loaded from "+(tabs.length>1?tabs.length+" tabs":fname));
   }catch(e){ setStatus("Couldn't read file: "+e.message,true); }
 }
 function bindUpload(){
@@ -1034,7 +1031,6 @@ if(SAVED_LEDGER && SAVED_LEDGER.length){
     user = u; show(gate, false);
     if (btnOut) btnOut.style.display = "inline";
     if (householdId) { loadHousehold(); return; }
-    setStatus("checking your household...");
     sb.from("household_members").select("household_id").eq("user_id", u.id).limit(1).then(function (res) {
       if (res.data && res.data.length) {
         householdId = res.data[0].household_id; localStorage.setItem(LS_KEY, householdId); loadHousehold();
