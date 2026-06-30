@@ -925,7 +925,7 @@ if(SAVED_LEDGER && SAVED_LEDGER.length){
   };
 
   function loadHousehold() {
-    show(hh, false); setStatus("loading the household ledger...");
+    show(hh, false);
     sb.from("households").select("name,code,data,created_by").eq("id", householdId).single()
       .then(function (res) {
         if (res.error || !res.data) {
